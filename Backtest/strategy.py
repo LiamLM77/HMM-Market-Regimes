@@ -6,15 +6,16 @@ class HMMStrategy:
         self.crisis_regime = None
         self.tc = transaction_cost
 
-    def run_backtest(self, data):
-        regime_vols = data.groupby('Regime')['Volatility'].mean()
+    def run_backtest(self, data, train_end_date):
+        train_data = data[:train_end_date]
+        regime_vols = train_data.groupby('Regime')['Volatility'].mean()
         self.crisis_regime = regime_vols.idxmax()
         
-        data['Position'] = 1
-        data.loc[data['Regime'] == self.crisis_regime, 'Position'] = 0
+        crisis_prob_col = f'Prob_Regime_{self.crisis_regime}'
+        
+        data['Position'] = 1.0 - data[crisis_prob_col]
         
         data['Trades'] = data['Position'].diff().abs().fillna(0)
-        
         data['Strategy_Returns'] = (data['Position'].shift(1) * data['Returns']) - (data['Trades'] * self.tc)
         data.dropna(inplace=True)
         
