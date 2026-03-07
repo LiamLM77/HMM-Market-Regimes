@@ -1,21 +1,40 @@
+# =============================
+# Libraries / Dependencies
+# =============================
 import numpy as np
 import pandas as pd
 
+# =============================
+# Strategy Logic
+# =============================
 class HMMStrategy:
+    """Continuous-allocation strategy driven by HMM crisis probability."""
+
     def __init__(self, transaction_cost=0.001):
+        """Initialize strategy parameters."""
         self.crisis_regime = None
         self.tc = transaction_cost
 
     def run_backtest(self, data, train_end_date):
+        """Run out-of-sample style backtest using regime probabilities as exposure."""
+        # =============================
+        # 1) Identify Crisis Regime
+        # =============================
         train_data = data[:train_end_date]
+        # Define the "crisis" regime as the most volatile regime in training data.
         regime_vols = train_data.groupby('Regime')['Volatility'].mean()
         self.crisis_regime = regime_vols.idxmax()
         
         crisis_prob_col = f'Prob_Regime_{self.crisis_regime}'
         
+        # =============================
+        # 2) Build Position and Returns
+        # =============================
+        # Less crisis probability => higher market exposure (0 to 1 allocation).
         data['Position'] = 1.0 - data[crisis_prob_col]
         
         data['Trades'] = data['Position'].diff().abs().fillna(0)
+        # Use previous day's position to avoid look-ahead bias.
         data['Strategy_Returns'] = (data['Position'].shift(1) * data['Returns']) - (data['Trades'] * self.tc)
         data.dropna(inplace=True)
         
@@ -25,6 +44,10 @@ class HMMStrategy:
         return data
 
     def calculate_kpis(self, data):
+        """Compute annualized return, Sharpe ratio, and max drawdown metrics."""
+        # =============================
+        # 3) Performance Metrics
+        # =============================
         days = len(data)
         ann_ret_mkt = (data['Cumulative_Market'].iloc[-1]) ** (252/days) - 1
         ann_ret_strat = (data['Cumulative_Strategy'].iloc[-1]) ** (252/days) - 1
