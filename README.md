@@ -1,5 +1,9 @@
 # HMM Market Regimes
 
+
+https://github.com/user-attachments/assets/3a554993-ae8a-40a3-b06b-fac37f55e13a
+
+
 Hidden Markov Model (HMM)-based market regime detection and dynamic exposure strategy, delivered as an interactive Streamlit dashboard.
 
 This project trains a Gaussian HMM on engineered market features, estimates regime probabilities over time, and converts those probabilities into a continuous long exposure signal for out-of-sample backtesting.
