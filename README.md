@@ -1,7 +1,10 @@
 # HMM Market Regimes
 
 
-https://github.com/user-attachments/assets/3a554993-ae8a-40a3-b06b-fac37f55e13a
+
+https://github.com/user-attachments/assets/bedc85f3-5203-44dc-8eae-5905077fb26b
+
+
 
 
 Hidden Markov Model (HMM)-based market regime detection and dynamic exposure strategy, delivered as an interactive Streamlit dashboard.
@@ -79,13 +82,18 @@ Position = 1 - P(crisis regime)
 Save screenshots from your Streamlit app into `assets/` and reference them here.
 
 ### Equity Curve and Dynamic Exposure
-![Equity Curve](assets/equity_curve.png)
+
+<img width="1515" height="530" alt="equity_curve" src="https://github.com/user-attachments/assets/d8cedbfa-c56f-46e7-a642-dec0b0f9c271" />
 
 ### Regime Transition Matrix
-![Transition Matrix](assets/transition_matrix.png)
+
+<img width="732" height="705" alt="transition_heatmap" src="https://github.com/user-attachments/assets/9c44ee15-e3af-47d7-883d-05c9f654bf9b" />
+
 
 ### 3D Feature Space Clustering
-![3D Feature Space](assets/feature_space_3d.png)
+
+<img width="744" height="655" alt="3D_clustering" src="https://github.com/user-attachments/assets/ae3af57c-566d-45ff-83dd-4e0620055752" />
+
 
 ## Installation
 
