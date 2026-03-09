@@ -44,6 +44,33 @@ if st.sidebar.button("Run Advanced Backtest"):
         model.fit(train_df)
         df = model.predict(df)
         transmat = model.get_transition_matrix()
+
+        # Re-label regimes so lower IDs always mean calmer (lower volatility) markets.
+        split_key = train_end_date.strftime("%Y-%m-%d")
+        train_labeled_raw = df[:split_key]
+        old_order = (
+            train_labeled_raw.groupby('Regime')['Volatility']
+            .mean()
+            .sort_values()
+            .index
+            .astype(int)
+            .tolist()
+        )
+        old_to_new = {old_id: new_id for new_id, old_id in enumerate(old_order)}
+
+        # Remap regime labels.
+        df['Regime'] = df['Regime'].map(old_to_new).astype(int)
+
+        # Remap probability columns to the new regime IDs.
+        prob_by_new_id = {
+            new_id: df[f'Prob_Regime_{old_id}'].copy()
+            for old_id, new_id in old_to_new.items()
+        }
+        for new_id in range(n_regimes):
+            df[f'Prob_Regime_{new_id}'] = prob_by_new_id[new_id]
+
+        # Reorder transition matrix rows/cols to the new regime ordering.
+        transmat = transmat[old_order][:, old_order]
         
         # 4) Convert probabilities into dynamic portfolio allocation.
         strategy = HMMStrategy(transaction_cost=0.001)
@@ -52,6 +79,37 @@ if st.sidebar.button("Run Advanced Backtest"):
         # 5) Report out-of-sample KPIs after the training split.
         df_oos = df[train_end_date.strftime("%Y-%m-%d"):]
         kpis_oos = strategy.calculate_kpis(df_oos)
+
+        # Build logical regime colors from calm -> crisis using volatility rank.
+        train_labeled = df[:train_end_date.strftime("%Y-%m-%d")]
+        crisis_regime = int(strategy.crisis_regime)
+        vol_by_regime = train_labeled.groupby('Regime')['Volatility'].mean().sort_values()
+        risk_order = [int(r) for r in vol_by_regime.index]
+
+        # Low risk (green) -> mid risk (yellow/orange) -> high risk (red).
+        risk_palette = ['#2E7D32', '#66BB6A', '#FBC02D', '#FB8C00', '#C62828']
+        regime_color_map = {}
+        n_risks = len(risk_order)
+        for idx, regime_int in enumerate(risk_order):
+            if n_risks == 1:
+                palette_idx = len(risk_palette) - 1
+            else:
+                palette_idx = round(idx * (len(risk_palette) - 1) / (n_risks - 1))
+            regime_color_map[regime_int] = risk_palette[palette_idx]
+
+        # Always force the strategy crisis regime to red for intuitive reading.
+        regime_color_map[crisis_regime] = '#C62828'
+
+        regime_name_map = {}
+        for idx, regime_int in enumerate(risk_order):
+            if regime_int == crisis_regime:
+                regime_name_map[regime_int] = 'Crisis / High Volatility'
+            elif idx == 0:
+                regime_name_map[regime_int] = 'Calm / Low Volatility'
+            elif idx <= (n_risks - 1) / 2:
+                regime_name_map[regime_int] = 'Neutral / Moderate Volatility'
+            else:
+                regime_name_map[regime_int] = 'Elevated Risk / Higher Volatility'
         
         # =============================
         # KPI Summary (Out-of-Sample)
@@ -70,7 +128,33 @@ if st.sidebar.button("Run Advanced Backtest"):
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1, row_heights=[0.7, 0.3])
         
         fig.add_trace(go.Scatter(x=df.index, y=df['Cumulative_Market'], line=dict(color='gray'), name='Market'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df.index, y=df['Cumulative_Strategy'], line=dict(color='blue'), name='Strategy'), row=1, col=1)
+        fig.add_trace(
+            go.Scatter(
+                x=df.index,
+                y=df['Cumulative_Strategy'],
+                mode='lines',
+                line=dict(color='#1E3A8A', width=2.2),
+                name='Strategy',
+                showlegend=True
+            ),
+            row=1,
+            col=1
+        )
+
+        # Clean regime overlay: line segments are colored by active regime (no dot clutter).
+        for regime_int in sorted(regime_color_map.keys()):
+            y_regime = df['Cumulative_Strategy'].where(df['Regime'] == regime_int)
+            fig.add_trace(
+                go.Scatter(
+                    x=df.index,
+                    y=y_regime,
+                    mode='lines',
+                    line=dict(color=regime_color_map[regime_int], width=2.6),
+                    name=f"Regime {regime_int}: {regime_name_map.get(regime_int, 'Unlabeled')}"
+                ),
+                row=1,
+                col=1
+            )
         
         # Mark the train/test split for visual clarity.
         fig.add_vline(x=pd.to_datetime(train_end_date), line_width=2, line_dash="dash", line_color="red", row=1, col=1)
@@ -84,7 +168,7 @@ if st.sidebar.button("Run Advanced Backtest"):
         )
         
         fig.add_trace(go.Scatter(x=df.index, y=df['Position'], fill='tozeroy', line=dict(color='cyan'), name='Exposure %'), row=2, col=1)
-        
+
         fig.update_yaxes(title_text="Growth of $1", row=1, col=1)
         fig.update_yaxes(title_text="Exposure", tickformat=".0%", row=2, col=1)
         fig.update_xaxes(title_text="Date", row=2, col=1)
@@ -105,13 +189,60 @@ if st.sidebar.button("Run Advanced Backtest"):
         
         with col_heat:
             st.subheader("Transition Matrix Heatmap")
-            fig_heat = px.imshow(transmat, text_auto=".2%", color_continuous_scale="Viridis", labels=dict(x="To Regime", y="From Regime", color="Probability"))
-            fig_heat.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=40, b=10))
+            # Focus color range on rare transition moves (1% is already meaningful).
+            heat_max = 0.05  # 5%
+            fig_heat = px.imshow(
+                transmat,
+                text_auto=".2%",
+                color_continuous_scale="YlOrRd",
+                zmin=0,
+                zmax=heat_max,
+                labels=dict(x="To Regime", y="From Regime", color="Probability")
+            )
+            fig_heat.update_layout(
+                template="plotly_white",
+                margin=dict(l=10, r=10, t=40, b=10),
+                coloraxis_colorbar=dict(
+                    title="Probability",
+                    tickformat=".1%",
+                    tickvals=[0.00, 0.01, 0.02, 0.03, 0.04, 0.05]
+                )
+            )
             st.plotly_chart(fig_heat, use_container_width=True)
+            st.caption("Color scale is clipped to 0%-5% so low-probability regime changes are easier to read.")
             
         with col_3d:
             st.subheader("3D Feature Space Clustering")
-            fig3d = go.Figure(data=[go.Scatter3d(x=df['Volatility'], y=df['Momentum'], z=df['Liquidity'], mode='markers', marker=dict(size=3, color=df['Regime'], colorscale='Portland', opacity=0.7), text=df.index.strftime('%Y-%m-%d'))])
+            fig3d = go.Figure()
+            fig3d.add_trace(
+                go.Scatter3d(
+                    x=df['Volatility'],
+                    y=df['Momentum'],
+                    z=df['Liquidity'],
+                    mode='markers',
+                    showlegend=False,
+                    marker=dict(size=3, color=df['Regime'].map(regime_color_map), opacity=0.7),
+                    text=df.index.strftime('%Y-%m-%d')
+                )
+            )
+
+            # Add legend-only traces so users can map each regime to its color.
+            unique_regimes = sorted(df['Regime'].dropna().unique())
+            for regime in unique_regimes:
+                regime_int = int(regime)
+                regime_color = regime_color_map.get(regime_int, '#9E9E9E')
+                fig3d.add_trace(
+                    go.Scatter3d(
+                        x=[None],
+                        y=[None],
+                        z=[None],
+                        mode='markers',
+                        name=f"Regime {regime_int}: {regime_name_map.get(regime_int, 'Unlabeled')}",
+                        marker=dict(size=6, color=regime_color),
+                        showlegend=True
+                    )
+                )
+
             fig3d.update_layout(
                 scene=dict(
                     xaxis_title='Volatility',
@@ -121,6 +252,7 @@ if st.sidebar.button("Run Advanced Backtest"):
                 ),
                 margin=dict(l=0, r=0, b=0, t=0),
                 template="plotly_dark",
-                height=400
+                height=400,
+                legend=dict(title='Regimes')
             )
             st.plotly_chart(fig3d, use_container_width=True)
