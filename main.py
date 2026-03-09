@@ -74,10 +74,27 @@ if st.sidebar.button("Run Advanced Backtest"):
         
         # Mark the train/test split for visual clarity.
         fig.add_vline(x=pd.to_datetime(train_end_date), line_width=2, line_dash="dash", line_color="red", row=1, col=1)
+        fig.add_annotation(
+            x=pd.to_datetime(train_end_date),
+            y=1.02,
+            yref="paper",
+            text="Train/Test Split",
+            showarrow=False,
+            font=dict(color="red", size=11)
+        )
         
         fig.add_trace(go.Scatter(x=df.index, y=df['Position'], fill='tozeroy', line=dict(color='cyan'), name='Exposure %'), row=2, col=1)
         
-        fig.update_layout(height=700, template="plotly_dark", title_text="Continuous Allocation Backtest")
+        fig.update_yaxes(title_text="Growth of $1", row=1, col=1)
+        fig.update_yaxes(title_text="Exposure", tickformat=".0%", row=2, col=1)
+        fig.update_xaxes(title_text="Date", row=2, col=1)
+        fig.update_layout(
+            height=700,
+            template="plotly_white",
+            title_text="Continuous Allocation Backtest",
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
         st.plotly_chart(fig, use_container_width=True)
         
         # =============================
@@ -89,11 +106,21 @@ if st.sidebar.button("Run Advanced Backtest"):
         with col_heat:
             st.subheader("Transition Matrix Heatmap")
             fig_heat = px.imshow(transmat, text_auto=".2%", color_continuous_scale="Viridis", labels=dict(x="To Regime", y="From Regime", color="Probability"))
-            fig_heat.update_layout(template="plotly_dark")
+            fig_heat.update_layout(template="plotly_white", margin=dict(l=10, r=10, t=40, b=10))
             st.plotly_chart(fig_heat, use_container_width=True)
             
         with col_3d:
             st.subheader("3D Feature Space Clustering")
             fig3d = go.Figure(data=[go.Scatter3d(x=df['Volatility'], y=df['Momentum'], z=df['Liquidity'], mode='markers', marker=dict(size=3, color=df['Regime'], colorscale='Portland', opacity=0.7), text=df.index.strftime('%Y-%m-%d'))])
-            fig3d.update_layout(scene=dict(xaxis_title='Volatility', yaxis_title='Momentum', zaxis_title='Liquidity', bgcolor='rgb(20, 20, 20)'), margin=dict(l=0, r=0, b=0, t=0), template="plotly_dark", height=400)
+            fig3d.update_layout(
+                scene=dict(
+                    xaxis_title='Volatility',
+                    yaxis_title='Momentum',
+                    zaxis_title='Liquidity',
+                    bgcolor='rgb(18, 22, 28)'
+                ),
+                margin=dict(l=0, r=0, b=0, t=0),
+                template="plotly_dark",
+                height=400
+            )
             st.plotly_chart(fig3d, use_container_width=True)

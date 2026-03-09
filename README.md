@@ -4,6 +4,33 @@ Hidden Markov Model (HMM)-based market regime detection and dynamic exposure str
 
 This project trains a Gaussian HMM on engineered market features, estimates regime probabilities over time, and converts those probabilities into a continuous long exposure signal for out-of-sample backtesting.
 
+## Why This Project
+
+Most backtests assume static exposure. This project explores a regime-aware allocation approach:
+
+- Detect latent market regimes with a Gaussian HMM
+- Estimate regime probabilities through time
+- Reduce exposure when crisis-regime probability rises
+- Evaluate out-of-sample performance with transaction costs
+
+## Results Snapshot
+
+Use this table to report one representative run before sharing on LinkedIn.
+
+- Ticker: `^GSPC`
+- Train period: `2005-01-01` to `2015-01-01`
+- Test period: `2015-01-01` onward
+- Regimes: `3`
+- Transaction cost: `10 bps`
+
+| Metric | Market | Strategy |
+|---|---:|---:|
+| Annualized Return | 16.72% | 17.11% |
+| Sharpe Ratio | 0.51 | 0.57 |
+| Max Drawdown | -33.92% | -20.78% |
+
+> Note: Results vary by ticker, split date, and number of regimes.
+
 ## Features
 
 - Regime detection with `hmmlearn` Gaussian HMM
@@ -19,6 +46,7 @@ This project trains a Gaussian HMM on engineered market features, estimates regi
 HMM-Market-Regimes/
 |-- main.py                    # Streamlit app entry point
 |-- requirements.txt
+|-- assets/                    # Images for README 
 |-- Data/
 |   `-- data_loader.py         # Download data + feature engineering
 |-- Models/
@@ -41,6 +69,19 @@ Position = 1 - P(crisis regime)
 ```
 
 7. Backtest strategy returns with transaction costs and compare against market buy-and-hold.
+
+## Visual Outputs
+
+Save screenshots from your Streamlit app into `assets/` and reference them here.
+
+### Equity Curve and Dynamic Exposure
+![Equity Curve](assets/equity_curve.png)
+
+### Regime Transition Matrix
+![Transition Matrix](assets/transition_matrix.png)
+
+### 3D Feature Space Clustering
+![3D Feature Space](assets/feature_space_3d.png)
 
 ## Installation
 
@@ -90,9 +131,10 @@ The app reports out-of-sample:
 - Strategy max drawdown
 - Total trades executed
 
-## Notes And Assumptions
+## Limitations
 
 - Data source is Yahoo Finance; availability and adjusted fields depend on ticker.
+- Crisis regime is defined as the highest in-sample volatility regime (a heuristic).
 - The strategy is long-only with dynamic exposure in `[0, 1]`.
 - Regime labels are latent and do not have fixed economic meaning across retrains.
 - This is a research/educational framework, not financial advice.
@@ -100,6 +142,7 @@ The app reports out-of-sample:
 ## Potential Extensions
 
 - Walk-forward retraining
+- Confidence intervals or bootstrap analysis for KPI stability
 - Regime-specific transaction costs/slippage modeling
 - Alternative feature sets and window lengths
 - Multi-asset portfolio construction
